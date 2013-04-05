@@ -228,6 +228,9 @@ class Client(object):
 
         Raises ``ValidationException``, ``ClientException``, and socket errors
         '''
+        if len(keys) == 0:
+            return []
+
         # req  - get <key> [<key> ...]\r\n
         # resp - VALUE <key> <flags> <bytes> [<cas unique>]\r\n
         #        <data block>\r\n (if exists)
