@@ -1,3 +1,8 @@
+*Note:* The only difference between this fork and the original repository 
+https://github.com/mixpanel/memcache_client is that this fork has a setup.py 
+file which lets you install it with pip, setuptools or any other package
+installation tool available
+
 memcache_client is a minimal, pure python client for memcached, kestrel, etc.
 It is an alternative to the de-facto pure python standard client
 'python-memcached', but is not intended to be a drop-in replacement.
