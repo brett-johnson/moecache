@@ -62,7 +62,10 @@ class Client(object):
         self._connect_timeout = connect_timeout
         self._socket = None
 
-    def __del__(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
         self.close()
 
     def _connect(self):

@@ -249,15 +249,14 @@ class TestConnectTimeout(unittest.TestCase):
 
         # client usually does lazy connect, but we don't want to confuse connect and non-connect timeout
         # so connect manually
-        client = moecache.Client(self.unavailable_ip, 11211, timeout=1)
-        self.assertRaises(socket.timeout, client._connect)
-        client.close()
+        with moecache.Client(self.unavailable_ip, 11211, timeout=1) as client:
+            self.assertRaises(socket.timeout, client._connect)
 
     def test_connect_timeout2(self):
         # using connect timeout
-        client = moecache.Client(self.unavailable_ip, 11211, connect_timeout=1)
-        self.assertRaises(socket.timeout, client._connect)
-        client.close()
+        with moecache.Client(self.unavailable_ip, 11211, connect_timeout=1) \
+                as client:
+            self.assertRaises(socket.timeout, client._connect)
 
 if __name__ == '__main__':
     # uncomment to only run specific tests
