@@ -1,6 +1,5 @@
-#!/usr/bin/env python
-
 # Copyright 2012 Mixpanel, Inc.
+# Copyright 2014 Rackspace, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from . import memcache
-except ValueError:
-    import memcache
+import moecache
 
 # subprocess is not monkey-patched, hence the special import
 import sys
@@ -92,7 +88,7 @@ class TestClient(unittest.TestCase):
         c.memcached.wait()
 
     def setUp(self):
-        self.client = memcache.Client('127.0.0.1', self.port)
+        self.client = moecache.Client('127.0.0.1', self.port)
 
     def tearDown(self):
         self.client.close()
@@ -175,7 +171,7 @@ class TestFailures(unittest.TestCase):
     def test_gone(self):
         mock_memcached, port = _start_new_memcached_server()
         try:
-            client = memcache.Client('127.0.0.1', port)
+            client = moecache.Client('127.0.0.1', port)
             key = 'gone'
             val = 'QWMcxh'
             client.set(key, val)
@@ -194,7 +190,7 @@ class TestFailures(unittest.TestCase):
     def test_hardfail(self):
         mock_memcached, port = _start_new_memcached_server()
         try:
-            client = memcache.Client('127.0.0.1', port)
+            client = moecache.Client('127.0.0.1', port)
             key = 'hardfail'
             val = 'FuOIdn'
             client.set(key, val)
@@ -216,7 +212,7 @@ class TestTimeout(unittest.TestCase):
     def test_set_get(self):
         mock_memcached, port = _start_new_memcached_server(mock=True)
         try:
-            client = memcache.Client('127.0.0.1', port)
+            client = moecache.Client('127.0.0.1', port)
             key = 'set_get'
             val = 'DhuWmC'
             client.set(key, val)
@@ -230,7 +226,7 @@ class TestTimeout(unittest.TestCase):
     def test_get_timeout(self):
         mock_memcached, port = _start_new_memcached_server(mock=True, additional_args=['--get-delay', '2'])
         try:
-            client = memcache.Client('127.0.0.1', port, timeout=1)
+            client = moecache.Client('127.0.0.1', port, timeout=1)
             key = 'get_timeout'
             val = 'cMuBde'
             client.set(key, val)
@@ -253,13 +249,13 @@ class TestConnectTimeout(unittest.TestCase):
 
         # client usually does lazy connect, but we don't want to confuse connect and non-connect timeout
         # so connect manually
-        client = memcache.Client(self.unavailable_ip, 11211, timeout=1)
+        client = moecache.Client(self.unavailable_ip, 11211, timeout=1)
         self.assertRaises(socket.timeout, client._connect)
         client.close()
 
     def test_connect_timeout2(self):
         # using connect timeout
-        client = memcache.Client(self.unavailable_ip, 11211, connect_timeout=1)
+        client = moecache.Client(self.unavailable_ip, 11211, connect_timeout=1)
         self.assertRaises(socket.timeout, client._connect)
         client.close()
 

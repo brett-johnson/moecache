@@ -1,4 +1,5 @@
 # Copyright 2012 Mixpanel, Inc.
+# Copyright 2014 Rackspace, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +14,12 @@
 # limitations under the License.
 
 '''
-a minimal, pure python client for memcached, kestrel, etc.
+A memcache client with a different shading strategy.
 
 Usage example::
 
-    import memcache
-    mc = memcache.Client("127.0.0.1", 11211, timeout=1, connect_timeout=5)
+    import moecache
+    mc = moecache.Client("127.0.0.1", 11211, timeout=1, connect_timeout=5)
     mc.set("some_key", "Some value")
     value = mc.get("some_key")
     mc.delete("another_key")
@@ -136,7 +137,7 @@ class Client(object):
                 if not tmp:
                     # we handle common close/retry cases in _send_command
                     # however, this can happen if server suddenly goes away
-                    # (e.g. restarting memcache under sufficient load)
+                    # (e.g. restarting memcached under sufficient load)
                     raise socket.error, 'unexpected socket close on recv'
                 else:
                     self._buffer += tmp

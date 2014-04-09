@@ -1,1 +1,6 @@
+*~
+.*.swp
+.coverage
 *.pyc
+venv
+*.egg-info
