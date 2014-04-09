@@ -65,32 +65,6 @@ class Client(object):
     def __del__(self):
         self.close()
 
-    def _get_addr(self):
-        return self._addr
-
-    address = property(_get_addr)
-    ''' A read-only (str, int) tuple representing the host operations are performed on '''
-
-    def _get_timeout(self):
-        return self._timeout
-
-    def _set_timeout(self, timeout):
-        # presumably this should fail rarely
-        # set locally before on socket
-        # b/c if socket fails, it will probably be closed/reopened
-        # and will want to use last intended value
-        self._timeout = timeout
-        if self._socket:
-            self._socket.settimeout(timeout)
-
-    timeout = property(_get_timeout, _set_timeout)
-    '''
-    A float representing the timeout in seconds for reads and sends on the underlying socket
-    (``connect_timeout`` cannot be changed once init)
-
-    Setting a timeout can raise a ``TypeError`` (non-float)  or a ``ValueError`` (negative)
-    '''
-
     def _connect(self):
         # buffer needed since we always ask for 4096 bytes at a time
         # thus, might read more than the current expected response
