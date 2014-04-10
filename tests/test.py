@@ -15,15 +15,6 @@
 
 import moecache
 
-# subprocess is not monkey-patched, hence the special import
-import sys
-if 'eventlet' in sys.modules:
-    from eventlet.green import subprocess
-else:
-    import subprocess
-
-import os
-import os.path
 import socket
 import time
 try:
@@ -31,53 +22,14 @@ try:
 except ImportError:
     import unittest
 
-low_port = 11000
-high_port = 11210
-# spin up new memcached instance to test against
-def _start_new_memcached_server(port=None, mock=False, additional_args=[]):
-    if not port:
-        global low_port
-        ports = range(low_port, high_port + 1)
-        low_port += 1
-    else:
-        ports = [port]
-
-    # try multiple ports so that can cleanly run tests 
-    # w/o having to wait for a particular port to free up
-    for attempted_port in ports:
-        try:
-            if mock:
-                command = [
-                    'python',
-                    os.path.join(os.path.dirname(__file__), 'mock_memcached.py'),
-                    '-p',
-                    str(attempted_port),
-                ]
-            else:
-                command = [
-                    '/usr/bin/memcached',
-                    '-p',
-                    str(attempted_port),
-                    '-m',
-                    '1', # 1MB
-                    '-l',
-                    '127.0.0.1',
-                ]
-            command.extend(additional_args)
-            p = subprocess.Popen(command)
-            time.sleep(2) # needed otherwise unittest races against startup
-            return p, attempted_port
-        except:
-            pass # try again
-    else:
-        raise Exception('could not start memcached -- no available ports')
+import helpers
 
 # test memcache client for basic functionality
 class TestClient(unittest.TestCase):
 
     @classmethod
     def setUpClass(c):
-        c.memcached, c.port = _start_new_memcached_server()
+        c.memcached, c.port = helpers.start_new_memcached_server()
 
     @classmethod
     def tearDownClass(c):
@@ -169,7 +121,7 @@ class TestClient(unittest.TestCase):
 class TestFailures(unittest.TestCase):
 
     def test_gone(self):
-        mock_memcached, port = _start_new_memcached_server()
+        mock_memcached, port = helpers.start_new_memcached_server()
         try:
             client = moecache.Client('127.0.0.1', port)
             key = 'gone'
@@ -188,7 +140,7 @@ class TestFailures(unittest.TestCase):
                 mock_memcached.wait()
 
     def test_hardfail(self):
-        mock_memcached, port = _start_new_memcached_server()
+        mock_memcached, port = helpers.start_new_memcached_server()
         try:
             client = moecache.Client('127.0.0.1', port)
             key = 'hardfail'
@@ -197,7 +149,8 @@ class TestFailures(unittest.TestCase):
 
             mock_memcached.kill() # sends SIGKILL
             mock_memcached.wait()
-            mock_memcached, port = _start_new_memcached_server(port=port)
+            mock_memcached, port = helpers.start_new_memcached_server(
+                port=port)
 
             mcval = client.get(key)
             self.assertEqual(mcval, None) # val lost when restarted
@@ -210,7 +163,7 @@ class TestTimeout(unittest.TestCase):
 
     # make sure mock server works
     def test_set_get(self):
-        mock_memcached, port = _start_new_memcached_server(mock=True)
+        mock_memcached, port = helpers.start_new_memcached_server(mock=True)
         try:
             client = moecache.Client('127.0.0.1', port)
             key = 'set_get'
@@ -224,7 +177,8 @@ class TestTimeout(unittest.TestCase):
             mock_memcached.wait()
 
     def test_get_timeout(self):
-        mock_memcached, port = _start_new_memcached_server(mock=True, additional_args=['--get-delay', '2'])
+        mock_memcached, port = helpers.start_new_memcached_server(
+            mock=True, additional_args=['--get-delay', '2'])
         try:
             client = moecache.Client('127.0.0.1', port, timeout=1)
             key = 'get_timeout'
