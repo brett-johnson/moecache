@@ -310,9 +310,7 @@ class Client(object):
         result = {}
         while resp != 'END\r\n':
             terms = resp.split()
-            if len(terms) == 2 and terms[0] == 'STAT':
-                result[terms[1]] = None
-            elif len(terms) == 3 and terms[0] == 'STAT':
+            if len(terms) == 3 and terms[0] == 'STAT':
                 result[terms[1]] = terms[2]
             else:
                 raise ClientException('stats failed', resp)
