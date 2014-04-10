@@ -59,7 +59,8 @@ class Client(object):
         '''
         self._addr = (host, port)
         self._timeout = timeout
-        self._connect_timeout = connect_timeout
+        self._connect_timeout = (connect_timeout if connect_timeout is not None
+                                 else timeout)
         self._socket = None
 
     def __enter__(self):
@@ -75,9 +76,8 @@ class Client(object):
         self._buffer = ''
 
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.settimeout(self._connect_timeout) # None means blocking
 
-        connect_timeout = self._connect_timeout if self._connect_timeout is not None else self._timeout
-        self._socket.settimeout(connect_timeout) # passing None means blocking
         try:
             self._socket.connect(self._addr)
             self._socket.settimeout(self._timeout)
