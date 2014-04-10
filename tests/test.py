@@ -40,7 +40,7 @@ class TestClient(unittest.TestCase):
         c.memcached.wait()
 
     def setUp(self):
-        self.client = moecache.Client('127.0.0.1', self.port)
+        self.client = moecache.Client(('127.0.0.1', self.port))
 
     def tearDown(self):
         self.client.close()
@@ -136,7 +136,7 @@ class TestFailures(unittest.TestCase):
     def test_gone(self):
         mock_memcached, port = helpers.start_new_memcached_server()
         try:
-            client = moecache.Client('127.0.0.1', port)
+            client = moecache.Client(('127.0.0.1', port))
             key = 'gone'
             val = 'QWMcxh'
             client.set(key, val)
@@ -155,7 +155,7 @@ class TestFailures(unittest.TestCase):
     def test_hardfail(self):
         mock_memcached, port = helpers.start_new_memcached_server()
         try:
-            client = moecache.Client('127.0.0.1', port)
+            client = moecache.Client(('127.0.0.1', port))
             key = 'hardfail'
             val = 'FuOIdn'
             client.set(key, val)
@@ -178,7 +178,7 @@ class TestTimeout(unittest.TestCase):
     def test_set_get(self):
         mock_memcached, port = helpers.start_new_memcached_server(mock=True)
         try:
-            client = moecache.Client('127.0.0.1', port)
+            client = moecache.Client(('127.0.0.1', port))
             key = 'set_get'
             val = 'DhuWmC'
             client.set(key, val)
@@ -193,7 +193,7 @@ class TestTimeout(unittest.TestCase):
         mock_memcached, port = helpers.start_new_memcached_server(
             mock=True, additional_args=['--get-delay', '2'])
         try:
-            client = moecache.Client('127.0.0.1', port, timeout=1)
+            client = moecache.Client(('127.0.0.1', port), timeout=1)
             key = 'get_timeout'
             val = 'cMuBde'
             client.set(key, val)
@@ -216,14 +216,23 @@ class TestConnectTimeout(unittest.TestCase):
 
         # client usually does lazy connect, but we don't want to confuse connect and non-connect timeout
         # so connect manually
-        with moecache.Client(self.unavailable_ip, 11211, timeout=1) as client:
+        with moecache.Client((self.unavailable_ip, 11211), timeout=1) \
+                as client:
             self.assertRaises(socket.timeout, client._connect)
 
     def test_connect_timeout2(self):
         # using connect timeout
-        with moecache.Client(self.unavailable_ip, 11211, connect_timeout=1) \
+        with moecache.Client((self.unavailable_ip, 11211), connect_timeout=1) \
                 as client:
             self.assertRaises(socket.timeout, client._connect)
+
+class TestHasher(unittest.TestCase):
+
+    def test_fnv1a_32(self):
+        self.assertEqual(moecache.fnv1a_32()('test'), 2949673445L);
+        self.assertEqual(moecache.fnv1a_32(0)('test'), 1858026756L);
+        self.assertEqual(moecache.fnv1a_32(0)(''), 0);
+
 
 if __name__ == '__main__':
     # uncomment to only run specific tests

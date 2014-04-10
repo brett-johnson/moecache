@@ -19,7 +19,7 @@ A memcache client with a different shading strategy.
 Usage example::
 
     import moecache
-    mc = moecache.Client("127.0.0.1", 11211, timeout=1, connect_timeout=5)
+    mc = moecache.Client(("127.0.0.1", 11211), timeout=1, connect_timeout=5)
     mc.set("some_key", "Some value")
     value = mc.get("some_key")
     mc.delete("another_key")
@@ -50,14 +50,29 @@ class ValidationException(ClientException):
     def __init__(self, msg, item):
         super(ValidationException, self).__init__(msg, item)
 
+def fnv1a_32(seed=0x811c9dc5):
+    def do_hash(s):
+        hval = seed
+        fnv_32_prime = 0x01000193
+        power_32 = 0x100000000
+
+        for c in s:
+            hval = hval ^ ord(c)
+            hval = (hval * fnv_32_prime) % power_32
+
+        return hval
+    return do_hash
+
 class Client(object):
 
-    def __init__(self, host, port, timeout=None, connect_timeout=None):
+    def __init__(self, servers, hasher=fnv1a_32(),
+                 timeout=None, connect_timeout=None):
         '''
         If ``connect_timeout`` is None, ``timeout`` will be used instead
         (for connect and everything else)
         '''
-        self._addr = (host, port)
+        self._addr = servers
+        self._hasher = hasher
         self._timeout = timeout
         self._connect_timeout = (connect_timeout if connect_timeout is not None
                                  else timeout)
