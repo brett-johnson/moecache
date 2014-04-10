@@ -66,3 +66,20 @@ def start_new_memcached_server(port=None, mock=False, additional_args=[]):
             pass # try again
     else:
         raise Exception('could not start memcached -- no available ports')
+
+@contextlib.contextmanager
+def expect(*exc_type):
+    """A context manager to validate raised expections.
+
+    :param *exc_type: Exception type(s) expected to be raised during
+        execution of the "with" context.
+    """
+    assert len(exc_type) > 0
+
+    try:
+        yield
+    except exc_type:
+        pass
+    else:
+        raise AssertionError(
+            'Not raised: %s' % ', '.join(e.__name__ for e in exc_type))

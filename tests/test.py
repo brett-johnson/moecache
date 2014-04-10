@@ -71,6 +71,15 @@ class TestClient(unittest.TestCase):
         mcval = self.client.get(key)
         self.assertEqual(mcval, None)
 
+    def test_bad_expire(self):
+        key = 'expire_bad'
+
+        with helpers.expect(moecache.ValidationException):
+            self.client.set(key, 'x', exptime=1.5)
+
+        with helpers.expect(moecache.ValidationException):
+            self.client.set(key, 'x', exptime=-1)
+
     def test_get_bad(self):
         self.assertRaises(Exception, self.client.get, 'get_bad\x84')
         mcval = self.client.get('!' * 250)
@@ -101,6 +110,10 @@ class TestClient(unittest.TestCase):
     def test_stats(self):
         stats = self.client.stats()
         self.assertTrue('total_items' in stats)
+
+    def test_stats_bad(self):
+        with helpers.expect(moecache.ClientException):
+            self.client.stats('kirihara')
 
     def test_bad_flags(self):
         self.client._connect()
