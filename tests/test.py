@@ -55,14 +55,6 @@ class TestClient(unittest.TestCase):
         mcval = self.client.get(key)
         self.assertEqual(mcval, None)
 
-    def test_multi_get(self):
-        items = {'blob':'steam', 'help':'tres', 'HEHE':'Pans'}
-        for k, v in items.items():
-            self.client.set(k, v)
-        resp = self.client.multi_get(items.keys())
-        for v, r in zip(items.values(), resp):
-            self.assertTrue(v == r)
-
     def test_expire(self):
         key = 'expire'
         val = "uiuokJ"
