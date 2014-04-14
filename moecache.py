@@ -63,6 +63,105 @@ def fnv1a_32(seed=0x811c9dc5):
         return hval
     return do_hash
 
+def _node_conf(timeout, connect_timeout):
+
+    class Node(object):
+
+        def __init__(self, addr):
+            self._addr = addr
+            self._socket = None
+
+        def connect(self):
+            # buffer needed since we always ask for 4096 bytes at a time
+            # thus, might read more than the current expected response
+            # cleared on every reconnect since old bytes are part of old
+            # session and can't be reused
+            self._buffer = ''
+
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._socket.settimeout(connect_timeout)
+
+            try:
+                self._socket.connect(self._addr)
+                self._socket.settimeout(timeout)
+            except (socket.error, socket.timeout):
+                self._socket = None # don't want to hang on to bad socket
+                raise
+
+        def gets(self, length=None):
+            '''
+            Return the next length bytes from server
+            Or, when length is None,
+            Read a response delimited by \r\n and return it (including \r\n)
+            (Use latter only when \r\n is unambiguous -- aka for control
+            responses, not data)
+            '''
+            result = None
+            while result is None:
+                if length: # length = 0 is ambiguous, so don't use
+                    if len(self._buffer) >= length:
+                        result = self._buffer[:length]
+                        self._buffer = self._buffer[length:]
+                else:
+                    delim_index = self._buffer.find('\r\n')
+                    if delim_index != -1:
+                        result = self._buffer[:delim_index+2]
+                        self._buffer = self._buffer[delim_index+2:]
+
+                if result is None:
+                    try:
+                        tmp = self._socket.recv(4096)
+                    except (socket.error, socket.timeout) as e:
+                        self.close()
+                        raise e
+
+                    if not tmp:
+                        # we handle common close/retry cases in _send_command
+                        # however, this can happen if server suddenly goes away
+                        # (e.g. restarting memcached under sufficient load)
+                        raise socket.error, 'unexpected socket close on recv'
+                    else:
+                        self._buffer += tmp
+            return result
+
+        def send(self, command):
+            '''
+            Send command to server and return initial response line
+            Will reopen socket if it got closed (either locally or by server)
+            '''
+            if self._socket: # try to find out if the socket is still open
+                try:
+                    self._socket.settimeout(0)
+                    self._socket.recv(0)
+                    # if recv didn't raise, then the socket was closed or
+                    # there is junk in the read buffer, either way, close
+                    self.close()
+                except socket.error as e:
+                    if e.errno == errno.EAGAIN:
+                        # this is expected if the socket is still open
+                        self._socket.settimeout(timeout)
+                    else:
+                        self.close()
+
+            if not self._socket:
+                self.connect()
+
+            self._socket.sendall(command)
+            return self.gets()
+
+        def close(self):
+            '''
+            Closes the socket if its open
+
+            Sockets are opened the first time a command is run
+            Raises socket errors
+            '''
+            if self._socket:
+                self._socket.close()
+                self._socket = None
+
+    return Node
+
 class Client(object):
 
     def __init__(self, servers, hasher=fnv1a_32(),
@@ -71,12 +170,11 @@ class Client(object):
         If ``connect_timeout`` is None, ``timeout`` will be used instead
         (for connect and everything else)
         '''
-        self._addr = servers
+        _node_type = _node_conf(timeout, connect_timeout
+                                if connect_timeout is not None
+                                else timeout)
+        self._node = _node_type(servers)
         self._hasher = hasher
-        self._timeout = timeout
-        self._connect_timeout = (connect_timeout if connect_timeout is not None
-                                 else timeout)
-        self._socket = None
 
     def __enter__(self):
         return self
@@ -84,80 +182,6 @@ class Client(object):
     def __exit__(self, type, value, traceback):
         self.close()
 
-    def _connect(self):
-        # buffer needed since we always ask for 4096 bytes at a time
-        # thus, might read more than the current expected response
-        # cleared on every reconnect since old bytes are part of old session and can't be reused
-        self._buffer = ''
-
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket.settimeout(self._connect_timeout) # None means blocking
-
-        try:
-            self._socket.connect(self._addr)
-            self._socket.settimeout(self._timeout)
-        except (socket.error, socket.timeout):
-            self._socket = None # don't want to hang on to bad socket
-            raise
-
-    def _read(self, length=None):
-        '''
-        Return the next length bytes from server
-        Or, when length is None,
-        Read a response delimited by \r\n and return it (including \r\n)
-        (Use latter only when \r\n is unambiguous -- aka for control responses, not data)
-        '''
-        result = None
-        while result is None:
-            if length: # length = 0 is ambiguous, so don't use
-                if len(self._buffer) >= length:
-                    result = self._buffer[:length]
-                    self._buffer = self._buffer[length:]
-            else:
-                delim_index = self._buffer.find('\r\n')
-                if delim_index != -1:
-                    result = self._buffer[:delim_index+2]
-                    self._buffer = self._buffer[delim_index+2:]
-
-            if result is None:
-                try:
-                    tmp = self._socket.recv(4096)
-                except (socket.error, socket.timeout) as e:
-                    self.close()
-                    raise e
-
-                if not tmp:
-                    # we handle common close/retry cases in _send_command
-                    # however, this can happen if server suddenly goes away
-                    # (e.g. restarting memcached under sufficient load)
-                    raise socket.error, 'unexpected socket close on recv'
-                else:
-                    self._buffer += tmp
-        return result
-
-    def _send_command(self, command):
-        '''
-        Send command to server and return initial response line
-        Will reopen socket if it got closed (either locally or by server)
-        '''
-        if self._socket: # try to find out if the socket is still open
-            try:
-                self._socket.settimeout(0)
-                self._socket.recv(0)
-                # if recv didn't raise, then the socket was closed or there is junk
-                # in the read buffer, either way, close
-                self.close()
-            except socket.error as e:
-                if e.errno == errno.EAGAIN: # this is expected if the socket is still open
-                    self._socket.settimeout(self._timeout)
-                else:
-                    self.close()
-
-        if not self._socket:
-            self._connect()
-
-        self._socket.sendall(command)
-        return self._read()
 
     # key supports ascii sans space and control chars
     # \x21 is !, right after space, and \x7e is -, right before DEL
@@ -182,13 +206,11 @@ class Client(object):
         '''
         Closes the socket if its open
 
-        | Sockets are automatically closed when the ``Client`` object is garbage collected
-        | Sockets are opened the first time a command is run (such as ``get`` or ``set``)
-        | Raises socket errors
+        Sockets are automatically closed when the ``Client`` object gets
+        out of the context
+        Raises socket errors
         '''
-        if self._socket:
-            self._socket.close()
-            self._socket = None
+        self._node.close()
 
     def delete(self, key):
         '''
@@ -203,7 +225,7 @@ class Client(object):
         key = self._validate_key(key)
 
         command = 'delete %s\r\n' % key
-        resp = self._send_command(command)
+        resp = self._node.send(command)
         if resp != 'DELETED\r\n' and resp != 'NOT_FOUND\r\n':
             raise ClientException('delete failed', resp)
 
@@ -222,7 +244,7 @@ class Client(object):
 
         command = 'get %s\r\n' % key
         received = None
-        resp = self._send_command(command)
+        resp = self._node.send(command)
         error = None
 
         # make sure well-formed responses are all consumed
@@ -234,12 +256,12 @@ class Client(object):
                 if flags != 0:
                     error = ClientException('received non zero flags')
                 if terms[1] == key:
-                    received = self._read(length+2)[:-2]
+                    received = self._node.gets(length+2)[:-2]
                 else:
                     error = ClientException('received unwanted response')
             else:
                 raise ClientException('get failed', resp)
-            resp = self._read()
+            resp = self._node.gets()
 
         if error is not None:
             # this can happen if a memcached instance contains items set by a previous client
@@ -277,7 +299,7 @@ class Client(object):
             raise ValidationException('exptime negative', exptime)
 
         command = 'set %s 0 %d %d\r\n%s\r\n' % (key, exptime, len(val), val)
-        resp = self._send_command(command)
+        resp = self._node.send(command)
         if resp != 'STORED\r\n':
             raise ClientException('set failed', resp)
 
@@ -299,7 +321,7 @@ class Client(object):
         else:
             command = 'stats\r\n'
 
-        resp = self._send_command(command)
+        resp = self._node.send(command)
         result = {}
         while resp != 'END\r\n':
             terms = resp.split()
@@ -307,5 +329,5 @@ class Client(object):
                 result[terms[1]] = terms[2]
             else:
                 raise ClientException('stats failed', resp)
-            resp = self._read()
+            resp = self._node.gets()
         return result

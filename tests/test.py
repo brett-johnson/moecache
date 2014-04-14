@@ -108,12 +108,12 @@ class TestClient(unittest.TestCase):
             self.client.stats('kirihara')
 
     def test_bad_flags(self):
-        self.client._connect()
+        self.client._node.connect()
         key = 'badflags'
         val = 'xcHJFd'
         command = 'set %s 1 0 %d\r\n%s\r\n' % (key, len(val), val)
-        self.client._socket.sendall(command)
-        rc = self.client._read()
+        self.client._node._socket.sendall(command)
+        rc = self.client._node.gets()
         self.assertEqual(rc, 'STORED\r\n')
         self.assertRaises(Exception, self.client.get, key)
 
@@ -210,13 +210,13 @@ class TestConnectTimeout(unittest.TestCase):
         # so connect manually
         with moecache.Client((self.unavailable_ip, 11211), timeout=1) \
                 as client:
-            self.assertRaises(socket.timeout, client._connect)
+            self.assertRaises(socket.timeout, client._node.connect)
 
     def test_connect_timeout2(self):
         # using connect timeout
         with moecache.Client((self.unavailable_ip, 11211), connect_timeout=1) \
                 as client:
-            self.assertRaises(socket.timeout, client._connect)
+            self.assertRaises(socket.timeout, client._node.connect)
 
 class TestHasher(unittest.TestCase):
 
