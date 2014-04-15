@@ -17,10 +17,7 @@ import moecache
 
 import socket
 import time
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
+import unittest
 
 import helpers
 
@@ -218,29 +215,3 @@ class TestConnectTimeout(unittest.TestCase):
         with moecache.Client((self.unavailable_ip, 11211), connect_timeout=1) \
                 as client:
             self.assertRaises(socket.timeout, client.stats)
-
-class TestHasher(unittest.TestCase):
-
-    def test_fnv1a_32(self):
-        self.assertEqual(moecache.fnv1a_32()('test'), 2949673445L);
-        self.assertEqual(moecache.fnv1a_32(0)('test'), 1858026756L);
-        self.assertEqual(moecache.fnv1a_32(0)(''), 0);
-
-
-if __name__ == '__main__':
-    # uncomment to only run specific tests
-    #
-    # sadly, the particular map below is a bit cryptic
-    # basically, constructing the test case class with a string containing a method name
-    # creates an instance of the class that will only run that test
-    # a list of these can be passed to the test suite constructor to make the suite
-    # suite = unittest.TestSuite(map(TestConnectTimeout, ['test_connect_timeout', 'test_connect_timeout2']))
-
-    suite = unittest.TestSuite([
-        unittest.TestLoader().loadTestsFromTestCase(TestClient),
-        unittest.TestLoader().loadTestsFromTestCase(TestFailures),
-        unittest.TestLoader().loadTestsFromTestCase(TestTimeout),
-        # TestConnectTimeout not part of normal suite -- requires special config
-    ])
-
-    unittest.TextTestRunner(verbosity=2).run(suite)
