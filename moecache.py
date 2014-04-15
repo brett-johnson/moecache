@@ -28,6 +28,7 @@ Usage example::
 import errno
 import re
 import socket
+import bisect
 
 class ClientException(Exception):
     '''
@@ -70,6 +71,9 @@ def _node_conf(timeout, connect_timeout):
         def __init__(self, addr):
             self._addr = addr
             self._socket = None
+
+        def __str__(self):
+            return ':'.join((self._addr[0], str(self._addr[1])))
 
         def connect(self):
             # buffer needed since we always ask for 4096 bytes at a time
@@ -173,8 +177,11 @@ class Client(object):
         _node_type = _node_conf(timeout, connect_timeout
                                 if connect_timeout is not None
                                 else timeout)
-        self._node = _node_type(servers)
+        self._nodes = map(_node_type, [servers]
+                          if type(servers) is tuple else servers)
+        self._servers = {}
         self._hasher = hasher
+        self._build_index(self._nodes)
 
     def __enter__(self):
         return self
@@ -202,21 +209,52 @@ class Client(object):
             raise ValidationException('invalid key', key)
         return key
 
+    def _build_index(self, nodes):
+        mutations = 100
+        keys = []
+
+        for node in nodes:
+            tmp_keys = self._generate_keys(node, mutations)
+            # XXX old mapping is not dropped
+            for key in tmp_keys:
+                self._servers[key] = node
+            keys.extend(tmp_keys)
+
+        self._keys = sorted(keys)
+
+    def _generate_keys(self, node, n):
+        address = str(node)
+        return [self._hasher('-'.join((address, str(i)))) for i in range(n)]
+
+    def _find_node(self, key):
+        key_hash = self._hasher(key)
+        i = bisect.bisect_left(self._keys, key_hash)
+
+        if i == len(self._keys):
+            # largest key uses the first server
+            i = 0
+        elif i == 0 and self._keys[i] != key_hash:
+            # smallest key uses the last server
+            i == len(self._keys)
+
+        return self._servers[self._keys[i]]
+
     def close(self):
         '''
-        Closes the socket if its open
+        Closes any opened socket
 
         Sockets are automatically closed when the ``Client`` object gets
         out of the context
         Raises socket errors
         '''
-        self._node.close()
+        for node in self._nodes:
+            node.close()
 
     def delete(self, key):
         '''
-        Deletes a key/value pair from the server
+        Deletes a key/value pair
 
-        Raises ``ClientException`` and socket errors
+        Raises ``ValidationException``, ``ClientException``, and socket errors
         '''
         # req  - delete <key> [noreply]\r\n
         # resp - DELETED\r\n
@@ -225,13 +263,13 @@ class Client(object):
         key = self._validate_key(key)
 
         command = 'delete %s\r\n' % key
-        resp = self._node.send(command)
+        resp = self._find_node(key).send(command)
         if resp != 'DELETED\r\n' and resp != 'NOT_FOUND\r\n':
             raise ClientException('delete failed', resp)
 
     def get(self, key):
         '''
-        Gets a single value from the server; returns None if there is no value
+        Gets a single value; returns None if there is no such value
 
         Raises ``ValidationException``, ``ClientException``, and socket errors
         '''
@@ -244,7 +282,8 @@ class Client(object):
 
         command = 'get %s\r\n' % key
         received = None
-        resp = self._node.send(command)
+        node = self._find_node(key)
+        resp = node.send(command)
         error = None
 
         # make sure well-formed responses are all consumed
@@ -256,12 +295,12 @@ class Client(object):
                 if flags != 0:
                     error = ClientException('received non zero flags')
                 if terms[1] == key:
-                    received = self._node.gets(length+2)[:-2]
+                    received = node.gets(length+2)[:-2]
                 else:
                     error = ClientException('received unwanted response')
             else:
                 raise ClientException('get failed', resp)
-            resp = self._node.gets()
+            resp = node.gets()
 
         if error is not None:
             # this can happen if a memcached instance contains items set by a previous client
@@ -272,7 +311,8 @@ class Client(object):
 
     def set(self, key, val, exptime=0):
         '''
-        Sets a key to a value on the server with an optional exptime (0 means don't auto-expire)
+        Sets a key to a value on the servers with an optional exptime (0 means
+        don't auto-expire)
 
         Raises ``ValidationException``, ``ClientException``, and socket errors
         '''
@@ -299,13 +339,13 @@ class Client(object):
             raise ValidationException('exptime negative', exptime)
 
         command = 'set %s 0 %d %d\r\n%s\r\n' % (key, exptime, len(val), val)
-        resp = self._node.send(command)
+        resp = self._find_node(key).send(command)
         if resp != 'STORED\r\n':
             raise ClientException('set failed', resp)
 
     def stats(self, additional_args=None):
         '''
-        Runs a stats command on the server.
+        Aggregates the stats from all the servers
 
         ``additional_args`` are passed verbatim to the server.
         See `the memcached wiki <http://code.google.com/p/memcached/wiki/NewCommands#Statistics>`_ for details
@@ -321,13 +361,16 @@ class Client(object):
         else:
             command = 'stats\r\n'
 
-        resp = self._node.send(command)
-        result = {}
-        while resp != 'END\r\n':
-            terms = resp.split()
-            if len(terms) == 3 and terms[0] == 'STAT':
-                result[terms[1]] = terms[2]
-            else:
-                raise ClientException('stats failed', resp)
-            resp = self._node.gets()
-        return result
+        def do_stats(node):
+            resp = node.send(command)
+            result = {}
+            while resp != 'END\r\n':
+                terms = resp.split()
+                if len(terms) == 3 and terms[0] == 'STAT':
+                    result[terms[1]] = terms[2]
+                else:
+                    raise ClientException('stats failed', resp)
+                resp = node.gets()
+            return result
+
+        return map(do_stats, self._nodes)

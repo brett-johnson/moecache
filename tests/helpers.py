@@ -24,6 +24,8 @@ else:
 
 import os
 import os.path
+import random
+import string
 import time
 
 low_port = 11000
@@ -83,3 +85,7 @@ def expect(*exc_type):
     else:
         raise AssertionError(
             'Not raised: %s' % ', '.join(e.__name__ for e in exc_type))
+
+def random_key(maxlen=10, chars=string.lowercase + string.digits):
+    l = random.randint(1, maxlen)
+    return ''.join(random.choice(chars) for _ in range(l))
