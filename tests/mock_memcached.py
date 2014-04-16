@@ -79,7 +79,8 @@ class MockMemcached(object):
             time.sleep(self._get_delay)
         if key in self._dict:
             val = self._dict[key]
-            command = 'VALUE %s 0 %d\r\n%s\r\n' % (key, len(val), val)
+            # 274 = 18 | 0x100
+            command = 'VALUE %s 274 %d\r\n%s\r\n' % (key, len(val), val)
             self._socket.sendall(command)
         self._socket.sendall('END\r\n')
 

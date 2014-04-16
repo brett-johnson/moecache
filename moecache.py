@@ -290,10 +290,12 @@ class Client(object):
         while resp != 'END\r\n':
             terms = resp.split()
             if len(terms) == 4 and terms[0] == 'VALUE': # exists
-                flags = int(terms[2])
+                flags = int(terms[2]) ^ 0x100
                 length = int(terms[3])
-                if flags != 0:
-                    error = ClientException('received non zero flags')
+                if flags > 0xff:
+                    error = ClientException('not a moecache deployment')
+                elif flags != 18:
+                    error = ClientException('unsupported data type', flags)
                 if terms[1] == key:
                     received = node.gets(length+2)[:-2]
                 else:
@@ -338,7 +340,8 @@ class Client(object):
         elif exptime < 0:
             raise ValidationException('exptime negative', exptime)
 
-        command = 'set %s 0 %d %d\r\n%s\r\n' % (key, exptime, len(val), val)
+        # 274 = 18 | 0x100
+        command = 'set %s 274 %d %d\r\n%s\r\n' % (key, exptime, len(val), val)
         resp = self._find_node(key).send(command)
         if resp != 'STORED\r\n':
             raise ClientException('set failed', resp)

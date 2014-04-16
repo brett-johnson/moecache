@@ -109,11 +109,20 @@ class TestClient(unittest.TestCase):
         self.client._nodes[0].connect()
         key = 'badflags'
         val = 'xcHJFd'
-        command = 'set %s 1 0 %d\r\n%s\r\n' % (key, len(val), val)
-        self.client._nodes[0]._socket.sendall(command)
-        rc = self.client._nodes[0].gets()
-        self.assertEqual(rc, 'STORED\r\n')
-        self.assertRaises(Exception, self.client.get, key)
+
+        def store(flag):
+            command = 'set %s %d 60 %d\r\n%s\r\n' % (key, flag, len(val), val)
+            self.client._nodes[0]._socket.sendall(command)
+            rc = self.client._nodes[0].gets()
+            self.assertEqual(rc, 'STORED\r\n')
+
+        store(0)
+        with helpers.expect(Exception):
+            self.client.get(key)
+
+        store(17 | 0x100)
+        with helpers.expect(Exception):
+            self.client.get(key)
 
     def test_str_only(self):
         self.assertRaises(Exception, self.client.set, u'unicode_key', 'sfdhjk')
