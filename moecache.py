@@ -19,10 +19,12 @@ A memcache client with a different shading strategy.
 Usage example::
 
     import moecache
-    mc = moecache.Client(("127.0.0.1", 11211), timeout=1, connect_timeout=5)
-    mc.set("some_key", "Some value")
-    value = mc.get("some_key")
-    mc.delete("another_key")
+
+    with moecache.Client([("127.0.0.1", 11211), ("127.0.0.1", 11213)],
+                         timeout=1, connect_timeout=5) as mc:
+        mc.set("some_key", "Some value")
+        value = mc.get("some_key")
+        mc.delete("another_key")
 '''
 
 import errno
@@ -32,10 +34,13 @@ import bisect
 
 class ClientException(Exception):
     '''
-    Raised when the server does something we don't expect
+    Raised when memcached does something we don't expect, or the
+    memcached deployment is not compatible with moecache.
 
-    | This does not include `socket errors <http://docs.python.org/library/socket.html#socket.error>`_
-    | Note that ``ValidationException`` subclasses this so, technically, this is raised on any error
+    .. note::
+
+       This does not include `socket errors
+       <http://docs.python.org/library/socket.html#socket.error>`_.
     '''
 
     def __init__(self, msg, item=None):
@@ -45,7 +50,7 @@ class ClientException(Exception):
 
 class ValidationException(ClientException):
     '''
-    Raised when an invalid parameter is passed to a ``Client`` function
+    Raised when the user input is invalid to this library.
     '''
 
     def __init__(self, msg, item):
@@ -94,11 +99,12 @@ def _node_conf(timeout, connect_timeout):
 
         def gets(self, length=None):
             '''
-            Return the next length bytes from server
-            Or, when length is None,
-            Read a response delimited by \r\n and return it (including \r\n)
-            (Use latter only when \r\n is unambiguous -- aka for control
-            responses, not data)
+            Return the next length bytes from server, or, when length is
+            ``None``, read a response delimited by \r\n and return it
+            (including \r\n).
+
+            Use latter only when \r\n is unambiguous -- aka for control
+            responses, not data.
             '''
             result = None
             while result is None:
@@ -130,8 +136,9 @@ def _node_conf(timeout, connect_timeout):
 
         def send(self, command):
             '''
-            Send command to server and return initial response line
-            Will reopen socket if it got closed (either locally or by server)
+            Send command to server and return initial response line.
+            Will reopen socket if it got closed (either locally or by
+            server).
             '''
             if self._socket: # try to find out if the socket is still open
                 try:
@@ -155,10 +162,13 @@ def _node_conf(timeout, connect_timeout):
 
         def close(self):
             '''
-            Closes the socket if its open
+            Close the socket if opened.
 
-            Sockets are opened the first time a command is run
-            Raises socket errors
+            .. note::
+
+               Sockets are opened the first time a command is run.
+
+            Raises socket errors.
             '''
             if self._socket:
                 self._socket.close()
@@ -167,13 +177,25 @@ def _node_conf(timeout, connect_timeout):
     return Node
 
 class Client(object):
+    '''
+    Creates an object to hold a moecache session.  The object is also
+    a context manager, which automatically closes the sockets when the
+    control leaves the :token:`with` statement.
+
+    ``servers`` can be a single server, or a list of servers, where each
+    server is a ``(host, port)`` tuple, same as a ``socket`` AF_INET
+    address.
+
+    ``hasher`` is a callable object that will be used to hash the keys
+    and the servers.  By default, an FNV1s-32 hasher is being used.
+
+    If ``timeout`` is not specified, socket operations may block forever.
+    If ``connect_timeout`` is not specified, the ``timeout`` setting will
+    also be applied to the socket ``connect()`` operations.
+    '''
 
     def __init__(self, servers, hasher=fnv1a_32(),
                  timeout=None, connect_timeout=None):
-        '''
-        If ``connect_timeout`` is None, ``timeout`` will be used instead
-        (for connect and everything else)
-        '''
         _node_type = _node_conf(timeout, connect_timeout
                                 if connect_timeout is not None
                                 else timeout)
@@ -241,20 +263,26 @@ class Client(object):
 
     def close(self):
         '''
-        Closes any opened socket
+        Closes any opened socket.
 
         Sockets are automatically closed when the ``Client`` object gets
-        out of the context
-        Raises socket errors
+        out of the context.
+
+        Raises socket errors.
         '''
         for node in self._nodes:
             node.close()
 
     def delete(self, key):
         '''
-        Deletes a key/value pair
+        Deletes a key/value pair.
 
-        Raises ``ValidationException``, ``ClientException``, and socket errors
+        Raises ``ValidationException`` if ``key`` is invalid.  May also
+        raise ``ClientException`` and socket errors.
+
+        .. note:: The postcondition of this operation is that the entry no
+            longer exists, so if the key does not exists at the first
+            place, nothing happens and the function returns without error.
         '''
         # req  - delete <key> [noreply]\r\n
         # resp - DELETED\r\n
@@ -269,9 +297,11 @@ class Client(object):
 
     def get(self, key):
         '''
-        Gets a single value; returns None if there is no such value
+        Gets a single value.  Returns :token:`None` if the key does not
+        exist.
 
-        Raises ``ValidationException``, ``ClientException``, and socket errors
+        Raises ``ValidationException`` if ``key`` is invalid.  May also
+        raise ``ClientException`` and socket errors.
         '''
         # req  - get <key> [<key> ...]\r\n
         # resp - VALUE <key> <flags> <bytes> [<cas unique>]\r\n
@@ -313,10 +343,19 @@ class Client(object):
 
     def set(self, key, val, exptime=0):
         '''
-        Sets a key to a value on the servers with an optional exptime (0 means
-        don't auto-expire)
+        Sets a key to a value with an optional expire time in seconds
+        (0 means don't auto-expire).
 
-        Raises ``ValidationException``, ``ClientException``, and socket errors
+        A valid ``key`` is a byte string with a minimal length of 1 and a
+        maximal length of 250, and each character is an ASCII graph
+        character (printable except spaces).
+
+        A valid ``val`` is a byte string.
+
+        A valid ``exptime`` is a non-negative integer.
+
+        If any of these arguments is invalid, ``ValidationException`` will
+        be raise.  May also raise ``ClientException`` and socket errors.
         '''
         # req  - set <key> <flags> <exptime> <bytes> [noreply]\r\n
         #        <data block>\r\n
@@ -348,13 +387,16 @@ class Client(object):
 
     def stats(self, additional_args=None):
         '''
-        Aggregates the stats from all the servers
+        Aggregates the stats from all the servers.
 
-        ``additional_args`` are passed verbatim to the server.
-        See `the memcached wiki <http://code.google.com/p/memcached/wiki/NewCommands#Statistics>`_ for details
-        or `the spec <https://github.com/memcached/memcached/blob/master/doc/protocol.txt>`_ for even more details
+        ``additional_args`` is a byte string being passed verbatim to the
+        servers.  See `the memcached wiki
+        <http://code.google.com/p/memcached/wiki/NewCommands#Statistics>`_
+        for details or `the spec
+        <https://github.com/memcached/memcached/blob/master/doc/protocol.txt>`_
+        for even more details.
 
-        Raises ``ClientException`` and socket errors
+        Raises ``ClientException`` and socket errors.
         '''
         # req  - stats [additional args]\r\n
         # resp - STAT <name> <value>\r\n (one per result)
