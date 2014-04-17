@@ -3,8 +3,8 @@ import os
 from setuptools import setup
 
 
-def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+def localopen(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname))
 
 
 setup(
@@ -18,7 +18,7 @@ setup(
     license='ASL 2.0',
     keywords=['rackspace', 'memcached'],
     url='https://github.com/lichray/moecache',
-    long_description=read('README.md'),
-    install_requires=open('requirements.txt').readlines(),
-    tests_require=open('test-requirements.txt').readlines()
+    long_description=localopen('README.md').read(),
+    install_requires=localopen('requirements.txt').readlines(),
+    tests_require=localopen('test-requirements.txt').readlines()
 )
