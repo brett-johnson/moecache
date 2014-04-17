@@ -21,7 +21,7 @@ import unittest
 
 import helpers
 
-# test memcache client for basic functionality
+# test memcached client for basic functionality
 class TestClient(unittest.TestCase):
 
     @classmethod

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 '''
-A memcache client with a different shading strategy.
+A memcached client with a different shading strategy.
 
 Usage example::
 
