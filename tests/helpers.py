@@ -55,7 +55,7 @@ def start_new_memcached_server(port=None, mock=False, additional_args=[]):
                 ]
             else:
                 command = [
-                    '/usr/bin/memcached',
+                    'memcached',
                     '-p',
                     str(attempted_port),
                     '-m',
