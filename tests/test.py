@@ -21,6 +21,7 @@ import unittest
 
 import helpers
 
+
 # test memcached client for basic functionality
 class TestClient(unittest.TestCase):
 
@@ -77,7 +78,8 @@ class TestClient(unittest.TestCase):
         self.assertRaises(Exception, self.client.get, '')
 
         # this tests regex edge case specific to the impl
-        self.assertRaises(Exception, self.client.get, 'get_bad_trailing_newline\n')
+        self.assertRaises(Exception, self.client.get,
+                          'get_bad_trailing_newline\n')
 
     def test_get_unknown(self):
         mcval = self.client.get('get_unknown')
@@ -86,7 +88,8 @@ class TestClient(unittest.TestCase):
     def test_set_bad(self):
         key = 'set_bad'
         self.assertRaises(Exception, self.client.set, key, '!' * 1024**2)
-        self.client.set(key, '!' * (1024**2 - 100)) # not sure why 1024**2 - 1 rejected
+        # not sure why 1024**2 - 1 rejected
+        self.client.set(key, '!' * (1024**2 - 100))
         self.assertRaises(Exception, self.client.set, '', 'empty key')
 
     def test_set_get(self):
@@ -128,6 +131,7 @@ class TestClient(unittest.TestCase):
         self.assertRaises(Exception, self.client.set, u'unicode_key', 'sfdhjk')
         self.assertRaises(Exception, self.client.set, 'str_key', u'DFHKfl')
 
+
 # make sure timeout works by using mock server
 # test memcached failing in a variety of ways, coming back vs. not, etc
 class TestFailures(unittest.TestCase):
@@ -159,17 +163,18 @@ class TestFailures(unittest.TestCase):
             val = 'FuOIdn'
             client.set(key, val)
 
-            mock_memcached.kill() # sends SIGKILL
+            mock_memcached.kill()  # sends SIGKILL
             mock_memcached.wait()
             mock_memcached, port = helpers.start_new_memcached_server(
                 port=port)
 
             mcval = client.get(key)
-            self.assertEqual(mcval, None) # val lost when restarted
+            self.assertEqual(mcval, None)  # val lost when restarted
             client.close()
         finally:
             mock_memcached.terminate()
             mock_memcached.wait()
+
 
 class TestTimeout(unittest.TestCase):
 
@@ -204,17 +209,22 @@ class TestTimeout(unittest.TestCase):
             mock_memcached.terminate()
             mock_memcached.wait()
 
+
 class TestConnectTimeout(unittest.TestCase):
 
-    # to run these tests, you need specify an ip that will not allow tcp from your machine to 11211
-    # this is easiest way to test connect timeout, since has to happen at kernel level (iptables etc)
-    unavailable_ip = '173.193.164.107' # appstage01 (external ip is firewalled, internal is not)
+    # to run these tests, you need specify an ip that will not allow tcp
+    # from your machine to 11211
+    # this is easiest way to test connect timeout, since has to happen at
+    # kernel level (iptables etc)
+
+    # appstage01 (external ip is firewalled, internal is not)
+    unavailable_ip = '173.193.164.107'
 
     def test_connect_timeout(self):
         # using normal timeout
 
-        # client usually does lazy connect, but we don't want to confuse connect and non-connect timeout
-        # so connect manually
+        # client usually does lazy connect, but we don't want to confuse
+        # connect and non-connect timeout, so connect manually
         with moecache.Client((self.unavailable_ip, 11211), timeout=1) \
                 as client:
             self.assertRaises(socket.timeout, client.stats)

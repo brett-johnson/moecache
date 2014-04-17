@@ -32,6 +32,7 @@ import re
 import socket
 import bisect
 
+
 class ClientException(Exception):
     '''
     Raised when memcached does something we don't expect, or the
@@ -45,8 +46,9 @@ class ClientException(Exception):
 
     def __init__(self, msg, item=None):
         if item is not None:
-            msg = '%s: %r' % (msg, item) # use repr() to better see special chars
+            msg = '%s: %r' % (msg, item)
         super(ClientException, self).__init__(msg)
+
 
 class ValidationException(ClientException):
     '''
@@ -55,6 +57,7 @@ class ValidationException(ClientException):
 
     def __init__(self, msg, item):
         super(ValidationException, self).__init__(msg, item)
+
 
 def fnv1a_32(seed=0x811c9dc5):
     def do_hash(s):
@@ -68,6 +71,7 @@ def fnv1a_32(seed=0x811c9dc5):
 
         return hval
     return do_hash
+
 
 def _node_conf(timeout, connect_timeout):
 
@@ -94,7 +98,7 @@ def _node_conf(timeout, connect_timeout):
                 self._socket.connect(self._addr)
                 self._socket.settimeout(timeout)
             except (socket.error, socket.timeout):
-                self._socket = None # don't want to hang on to bad socket
+                self._socket = None  # don't want to hang on to bad socket
                 raise
 
         def gets(self, length=None):
@@ -108,7 +112,7 @@ def _node_conf(timeout, connect_timeout):
             '''
             result = None
             while result is None:
-                if length: # length = 0 is ambiguous, so don't use
+                if length:  # length = 0 is ambiguous, so don't use
                     if len(self._buffer) >= length:
                         result = self._buffer[:length]
                         self._buffer = self._buffer[length:]
@@ -140,7 +144,7 @@ def _node_conf(timeout, connect_timeout):
             Will reopen socket if it got closed (either locally or by
             server).
             '''
-            if self._socket: # try to find out if the socket is still open
+            if self._socket:  # try to find out if the socket is still open
                 try:
                     self._socket.settimeout(0)
                     self._socket.recv(0)
@@ -175,6 +179,7 @@ def _node_conf(timeout, connect_timeout):
                 self._socket = None
 
     return Node
+
 
 class Client(object):
     '''
@@ -211,14 +216,13 @@ class Client(object):
     def __exit__(self, type, value, traceback):
         self.close()
 
-
     # key supports ascii sans space and control chars
     # \x21 is !, right after space, and \x7e is -, right before DEL
     # also 1 <= len <= 250 as per the spec
     _valid_key_re = re.compile('^[\x21-\x7e]{1,250}$')
 
     def _validate_key(self, key):
-        if not isinstance(key, str): # avoid bugs subtle and otherwise
+        if not isinstance(key, str):  # avoid bugs subtle and otherwise
             raise ValidationException('key must be str', key)
         m = self._valid_key_re.match(key)
         if m:
@@ -319,7 +323,7 @@ class Client(object):
         # make sure well-formed responses are all consumed
         while resp != 'END\r\n':
             terms = resp.split()
-            if len(terms) == 4 and terms[0] == 'VALUE': # exists
+            if len(terms) == 4 and terms[0] == 'VALUE':  # exists
                 flags = int(terms[2]) ^ 0x100
                 length = int(terms[3])
                 if flags > 0xff:
@@ -335,7 +339,8 @@ class Client(object):
             resp = node.gets()
 
         if error is not None:
-            # this can happen if a memcached instance contains items set by a previous client
+            # this can happen if a memcached instance contains items set
+            # by a previous client
             # leads to subtle bugs, so fail fast
             raise error
 
@@ -362,10 +367,7 @@ class Client(object):
         # resp - STORED\r\n (or others)
         key = self._validate_key(key)
 
-        # the problem with supporting types is it oftens leads to uneven and confused usage
-        # some code sites use the type support, others do manual casting to/from str
-        # worse yet, some sites don't even know what value they are putting in and mis-cast on get
-        # by uniformly requiring str, the end-use code is much more uniform and legible
+        # only byte string value is supported
         if not isinstance(val, str):
             raise ValidationException('value must be str', val)
 

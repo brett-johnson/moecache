@@ -24,17 +24,20 @@ from optparse import OptionError, OptionParser
 import socket
 import time
 
+
 class SocketClosedException(Exception):
 
     def __init__(self):
-        super(SocketClosedException, self).__init__('socket closed unexpectedly')
+        super(SocketClosedException, self).__init__(
+            'socket closed unexpectedly')
+
 
 class MockMemcached(object):
     def __init__(self, host, port, accept_connections, get_delay):
         self._addr = (host, port)
         self._accept_connections = accept_connections
         self._get_delay = get_delay
-        self._dict = {} # stores the key-val pairs
+        self._dict = {}  # stores the key-val pairs
         self._root_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._root_socket.bind(self._addr)
 
@@ -45,14 +48,16 @@ class MockMemcached(object):
 
     def _read(self, length=None):
         '''
-        Return the next length bytes from server
-        Or, when length is None,
-        Read a response delimited by \r\n and return it (including \r\n)
-        (Use latter only when \r\n is unambiguous -- aka for control responses, not data)
+        Return the next length bytes from server, or, when length is
+        ``None``, read a response delimited by \r\n and return it
+        (including \r\n).
+
+        Use latter only when \r\n is unambiguous -- aka for control
+        responses, not data.
         '''
         result = None
         while result is None:
-            if length: # length = 0 is ambiguous, so don't use 
+            if length:  # length = 0 is ambiguous, so don't use
                 if len(self._buffer) >= length:
                     result = self._buffer[:length]
                     self._buffer = self._buffer[length:]
@@ -88,7 +93,7 @@ class MockMemcached(object):
         # req  - set <key> <flags> <exptime> <bytes> [noreply]\r\n
         #        <data block>\r\n
         # resp - STORED\r\n (or others)
-        val = self._read(length+2)[:-2] # read \r\n then chop it off
+        val = self._read(length+2)[:-2]  # read \r\n then chop it off
         self._dict[key] = val
         self._socket.sendall('STORED\r\n')
 
@@ -98,7 +103,7 @@ class MockMemcached(object):
         if self._accept_connections:
             self._socket, addr = self._root_socket.accept()
         else:
-            while True: # spin until killed
+            while True:  # spin until killed
                 time.sleep(1)
 
         while True:
