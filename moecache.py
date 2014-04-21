@@ -84,6 +84,9 @@ def _node_conf(timeout, connect_timeout):
         def __str__(self):
             return ':'.join((self._addr[0], str(self._addr[1])))
 
+        def __repr__(self):  # pragma: no cover
+            return '<moecache.Node %s>' % self
+
         def connect(self):
             # buffer needed since we always ask for 4096 bytes at a time
             # thus, might read more than the current expected response
@@ -261,7 +264,7 @@ class Client(object):
             i = 0
         elif i == 0 and self._keys[i] != key_hash:
             # smallest key uses the last server
-            i == len(self._keys)
+            i = len(self._keys) - 1
 
         return self._servers[self._keys[i]]
 
