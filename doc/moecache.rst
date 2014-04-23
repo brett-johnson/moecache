@@ -6,7 +6,7 @@ moecache Module
     :exclude-members: Client, ClientException
     :show-inheritance:
     
-    .. autoclass:: Client(servers[, hasher[, timeout[, connect_timeout]]])
+    .. autoclass:: Client(servers[, timeout[, connect_timeout]])
 
        .. automethod:: set
        .. automethod:: get

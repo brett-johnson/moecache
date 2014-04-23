@@ -63,11 +63,10 @@ def fnv1a_32(seed=0x811c9dc5):
     def do_hash(s):
         hval = seed
         fnv_32_prime = 0x01000193
-        power_32 = 0x100000000
 
         for c in s:
             hval = hval ^ ord(c)
-            hval = (hval * fnv_32_prime) % power_32
+            hval = (hval * fnv_32_prime) & 0xffffffff
 
         return hval
     return do_hash
@@ -194,23 +193,24 @@ class Client(object):
     server is a ``(host, port)`` tuple, same as a ``socket`` AF_INET
     address.
 
-    ``hasher`` is a callable object that will be used to hash the keys
-    and the servers.  By default, an FNV1s-32 hasher is being used.
-
     If ``timeout`` is not specified, socket operations may block forever.
     If ``connect_timeout`` is not specified, the ``timeout`` setting will
     also be applied to the socket ``connect()`` operations.
     '''
 
-    def __init__(self, servers, hasher=fnv1a_32(),
-                 timeout=None, connect_timeout=None):
+    def __init__(self, servers, timeout=None, connect_timeout=None):
         _node_type = _node_conf(timeout, connect_timeout
                                 if connect_timeout is not None
                                 else timeout)
         self._nodes = map(_node_type, [servers]
                           if type(servers) is tuple else servers)
         self._servers = {}
-        self._hasher = hasher
+
+        # XXX
+        # simulate a type of bug -- the hasher is not properly seeded
+        # when the first time it's being used
+        self._uninitialized_hasher = fnv1a_32(0)
+        self._hasher = fnv1a_32()
         self._build_index(self._nodes)
 
     def __enter__(self):
@@ -253,10 +253,13 @@ class Client(object):
 
     def _generate_keys(self, node, n):
         address = str(node)
-        return [self._hasher('-'.join((address, str(i)))) for i in range(n)]
+        # XXX all servers but not the first one use the seeded hasher
+        return ([self._uninitialized_hasher(address + '-0')] +
+                [self._hasher('-'.join((address, str(i))))
+                 for i in range(1, n)])
 
     def _find_node(self, key):
-        key_hash = self._hasher(key)
+        key_hash = self._uninitialized_hasher(key)
         i = bisect.bisect_left(self._keys, key_hash)
 
         if i == len(self._keys):
