@@ -205,12 +205,6 @@ class Client(object):
         self._nodes = map(_node_type, [servers]
                           if type(servers) is tuple else servers)
         self._servers = {}
-
-        # XXX
-        # simulate a type of bug -- the hasher is not properly seeded
-        # when the first time it's being used
-        self._uninitialized_hasher = fnv1a_32(0)
-        self._hasher = fnv1a_32()
         self._build_index(self._nodes)
 
     def __enter__(self):
@@ -224,10 +218,11 @@ class Client(object):
     # also 1 <= len <= 250 as per the spec
     _valid_key_re = re.compile('^[\x21-\x7e]{1,250}$')
 
-    def _validate_key(self, key):
+    @classmethod
+    def _validate_key(cls, key):
         if not isinstance(key, str):  # avoid bugs subtle and otherwise
             raise ValidationException('key must be str', key)
-        m = self._valid_key_re.match(key)
+        m = cls._valid_key_re.match(key)
         if m:
             # in python re, $ matches either end of line or right before
             # \n at end of line. We can't allow latter case, so
@@ -250,11 +245,18 @@ class Client(object):
 
         self._keys = sorted(keys)
 
-    def _generate_keys(self, node, n):
+    # XXX
+    # simulate a type of bug -- the hasher is not properly seeded
+    # when the first time it's being used
+    _uninitialized_hasher = staticmethod(fnv1a_32(0))
+    _hasher = staticmethod(fnv1a_32())
+
+    @classmethod
+    def _generate_keys(cls, node, n):
         address = str(node)
         # XXX all servers but not the first one use the seeded hasher
-        return ([self._uninitialized_hasher(address + '-0')] +
-                [self._hasher('-'.join((address, str(i))))
+        return ([cls._uninitialized_hasher(address + '-0')] +
+                [cls._hasher('-'.join((address, str(i))))
                  for i in range(1, n)])
 
     def _find_node(self, key):
