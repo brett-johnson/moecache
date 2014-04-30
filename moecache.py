@@ -46,7 +46,7 @@ class ClientException(Exception):
 
     def __init__(self, msg, item=None):
         if item is not None:
-            msg = '%s: %r' % (msg, item)
+            msg += ': ' + repr(item)
         super(ClientException, self).__init__(msg)
 
 
@@ -301,7 +301,7 @@ class Client(object):
         #        NOT_FOUND\r\n
         self._validate_key(key)
 
-        command = 'delete %s\r\n' % key
+        command = 'delete ' + key + '\r\n'
         resp = self._find_node(key).send(command)
         if resp != 'DELETED\r\n' and resp != 'NOT_FOUND\r\n':
             raise ClientException('delete failed', resp)
@@ -321,7 +321,7 @@ class Client(object):
         #        END\r\n
         self._validate_key(key)
 
-        command = 'get %s\r\n' % key
+        command = 'get ' + key + '\r\n'
         received = None
         node = self._find_node(key)
         resp = node.send(command)
@@ -411,7 +411,7 @@ class Client(object):
         # resp - STAT <name> <value>\r\n (one per result)
         #        END\r\n
         if additional_args is not None:
-            command = 'stats %s\r\n' % additional_args
+            command = 'stats ' + additional_args + '\r\n'
         else:
             command = 'stats\r\n'
 
