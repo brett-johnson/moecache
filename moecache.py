@@ -32,6 +32,22 @@ import re
 import socket
 import bisect
 
+try:
+    from __pypy__.builders import StringBuilder
+
+    class OStringStream(object):
+        def __init__(self):
+            self.__b = StringBuilder()
+
+        def write(self, s):
+            self.__b.append(s)
+
+        def getvalue(self):
+            return self.__b.build()
+
+except ImportError:
+    from cStringIO import StringIO as OStringStream
+
 
 class ClientException(Exception):
     '''
@@ -388,8 +404,18 @@ class Client(object):
         elif exptime < 0:
             raise ValidationException('exptime negative', exptime)
 
-        # 274 = 18 | 0x100
-        command = 'set %s 274 %d %d\r\n%s\r\n' % (key, exptime, len(val), val)
+        buf = OStringStream()
+        buf.write('set ')
+        buf.write(key)
+        buf.write(' 274 ')  # 18 | 0x100
+        buf.write(str(exptime))
+        buf.write(' ')
+        buf.write(str(len(val)))
+        buf.write('\r\n')
+        buf.write(val)
+        buf.write('\r\n')
+
+        command = buf.getvalue()
         resp = self._find_node(key).send(command)
         if resp != 'STORED\r\n':
             raise ClientException('set failed', resp)
