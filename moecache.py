@@ -236,7 +236,6 @@ class Client(object):
                 raise ValidationException('trailing newline', key)
         else:
             raise ValidationException('invalid key', key)
-        return key
 
     def _build_index(self, nodes):
         mutations = 100
@@ -298,7 +297,7 @@ class Client(object):
         # resp - DELETED\r\n
         #        or
         #        NOT_FOUND\r\n
-        key = self._validate_key(key)
+        self._validate_key(key)
 
         command = 'delete %s\r\n' % key
         resp = self._find_node(key).send(command)
@@ -318,7 +317,7 @@ class Client(object):
         #        <data block>\r\n (if exists)
         #        [...]
         #        END\r\n
-        key = self._validate_key(key)
+        self._validate_key(key)
 
         command = 'get %s\r\n' % key
         received = None
@@ -371,7 +370,7 @@ class Client(object):
         # req  - set <key> <flags> <exptime> <bytes> [noreply]\r\n
         #        <data block>\r\n
         # resp - STORED\r\n (or others)
-        key = self._validate_key(key)
+        self._validate_key(key)
 
         # only byte string value is supported
         if not isinstance(val, str):
