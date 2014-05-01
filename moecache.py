@@ -163,10 +163,10 @@ def _node_conf(timeout, connect_timeout):
                         raise e
 
                     if not tmp:
-                        # we handle common close/retry cases in _send_command
+                        # we handle common close/retry cases in send(command)
                         # however, this can happen if server suddenly goes away
                         # (e.g. restarting memcached under sufficient load)
-                        raise socket.error, 'unexpected socket close on recv'
+                        raise socket.error('unexpected socket close on recv')
                     else:
                         self._buffer += tmp
             return result
