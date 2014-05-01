@@ -5,3 +5,5 @@
 venv
 *.egg-info
 .tox
+dist/
+doc/_build
