@@ -20,5 +20,13 @@ setup(
     url='https://github.com/lichray/moecache',
     long_description=localopen('README.md').read(),
     install_requires=localopen('requirements.txt').readlines(),
-    tests_require=localopen('test-requirements.txt').readlines()
+    tests_require=localopen('test-requirements.txt').readlines(),
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'License :: OSI Approved :: Apache Software License',
+        'Operating System :: POSIX',
+        'Programming Language :: Python :: 2 :: Only',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: Implementation :: PyPy',
+    ]
 )
