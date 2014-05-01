@@ -99,6 +99,13 @@ class TestClient(unittest.TestCase):
         mcval = self.client.get(key)
         self.assertEqual(mcval, val)
 
+    def test_set_get_obj(self):
+        key = 'set_get_obj'
+        val = ("tuple", 1024)
+        self.client.set(key, val)
+        mcval = self.client.get(key)
+        self.assertEqual(mcval, val)
+
     def test_stats(self):
         stats = self.client.stats()
         self.assertEqual(len(stats), 1)
@@ -126,10 +133,6 @@ class TestClient(unittest.TestCase):
         store(17 | 0x100)
         with helpers.expect(Exception):
             self.client.get(key)
-
-    def test_str_only(self):
-        self.assertRaises(Exception, self.client.set, u'unicode_key', 'sfdhjk')
-        self.assertRaises(Exception, self.client.set, 'str_key', u'DFHKfl')
 
 
 # make sure timeout works by using mock server

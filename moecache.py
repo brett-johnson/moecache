@@ -34,6 +34,7 @@ import bisect
 
 try:
     from __pypy__.builders import StringBuilder
+    import pickle
 
     class OStringStream(object):
         def __init__(self):
@@ -45,8 +46,22 @@ try:
         def getvalue(self):
             return self.__b.build()
 
+    def pickle_dumps(obj):
+        buf = OStringStream()
+        pickler = pickle.Pickler(buf, 2)
+        pickler.dump(obj)
+        return buf.getvalue()
+
+    from cPickle import loads as pickle_loads
+
 except ImportError:
     from cStringIO import StringIO as OStringStream
+    import cPickle
+
+    def pickle_dumps(obj):
+        return cPickle.dumps(obj, 2)
+
+    pickle_loads = cPickle.loads
 
 
 class ClientException(Exception):
@@ -338,7 +353,7 @@ class Client(object):
         self._validate_key(key)
 
         command = 'get ' + key + '\r\n'
-        received = None
+        val = None
         node = self._find_node(key)
         resp = node.send(command)
         error = None
@@ -347,14 +362,19 @@ class Client(object):
         while resp != 'END\r\n':
             terms = resp.split()
             if len(terms) == 4 and terms[0] == 'VALUE':  # exists
-                flags = int(terms[2]) ^ 0x100
+                typecode = int(terms[2]) ^ 0x100
                 length = int(terms[3])
-                if flags > 0xff:
+                if typecode > 0xff:
                     error = ClientException('not a moecache deployment')
-                elif flags != 18:
-                    error = ClientException('unsupported data type', flags)
                 if terms[1] == key:
                     received = node.gets(length+2)[:-2]
+                    if typecode == 18:
+                        val = received
+                    elif typecode == 0:
+                        val = pickle_loads(received)
+                    else:
+                        error = ClientException('unsupported data type',
+                                                typecode)
                 else:
                     error = ClientException('received unwanted response')
             else:
@@ -367,7 +387,7 @@ class Client(object):
             # leads to subtle bugs, so fail fast
             raise error
 
-        return received
+        return val
 
     def set(self, key, val, exptime=0):
         '''
@@ -390,10 +410,6 @@ class Client(object):
         # resp - STORED\r\n (or others)
         self._validate_key(key)
 
-        # only byte string value is supported
-        if not isinstance(val, str):
-            raise ValidationException('value must be str', val)
-
         # typically, if val is > 1024**2 bytes server returns:
         #   SERVER_ERROR object too large for cache\r\n
         # however custom-compiled memcached can have different limit
@@ -404,15 +420,22 @@ class Client(object):
         elif exptime < 0:
             raise ValidationException('exptime negative', exptime)
 
+        if isinstance(val, str):
+            flag = ' 274 '  # 18 | 0x100
+            sent = val
+        else:
+            flag = ' 256 '  # 0 | 0x100
+            sent = pickle_dumps(val)
+
         buf = OStringStream()
         buf.write('set ')
         buf.write(key)
-        buf.write(' 274 ')  # 18 | 0x100
+        buf.write(flag)
         buf.write(str(exptime))
         buf.write(' ')
-        buf.write(str(len(val)))
+        buf.write(str(len(sent)))
         buf.write('\r\n')
-        buf.write(val)
+        buf.write(sent)
         buf.write('\r\n')
 
         command = buf.getvalue()
