@@ -24,8 +24,12 @@ import helpers
 class TestSharding(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.servers = map(helpers.start_new_memcached_server,
-                          random.sample(range(11213, 11314), 4))
+        cls.servers = list(
+            map(
+                helpers.start_new_memcached_server,
+                random.sample(range(11213, 11314), 4)
+            )
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -33,7 +37,7 @@ class TestSharding(unittest.TestCase):
             try:
                 memcached.terminate()
             except:
-                print 'for some reason memcached not running'
+                print('for some reason memcached not running')
             else:
                 memcached.wait()
 
