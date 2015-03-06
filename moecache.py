@@ -31,6 +31,7 @@ import errno
 import re
 import socket
 import bisect
+import sys
 
 try:
     from __pypy__.builders import StringBuilder
@@ -55,13 +56,23 @@ try:
     from cPickle import loads as pickle_loads
 
 except ImportError:
-    from cStringIO import StringIO as OStringStream
-    import cPickle
+    try:
+        from cStringIO import StringIO as OStringStream
+        import cPickle
 
-    def pickle_dumps(obj):
-        return cPickle.dumps(obj, 2)
+        def pickle_dumps(obj):
+            return cPickle.dumps(obj, 2)
 
-    pickle_loads = cPickle.loads
+        pickle_loads = cPickle.loads
+
+    except ImportError:
+        from io import BytesIO as OStringStream
+        import pickle
+
+        def pickle_dumps(obj):
+            return pickle.dumps(obj, 2)
+
+        pickle_loads = pickle.loads
 
 
 class ClientException(Exception):
@@ -229,12 +240,14 @@ class Client(object):
     also be applied to the socket ``connect()`` operations.
     '''
 
+    is_py3 = sys.version_info.major == 3
+
     def __init__(self, servers, timeout=None, connect_timeout=None):
         _node_type = _node_conf(timeout, connect_timeout
                                 if connect_timeout is not None
                                 else timeout)
-        self._nodes = map(_node_type, [servers]
-                          if type(servers) is tuple else servers)
+        self._nodes = list(map(_node_type, [servers]
+                               if type(servers) is tuple else servers))
         self._servers = {}
         self._build_index(self._nodes)
 
@@ -262,6 +275,11 @@ class Client(object):
                 raise ValidationException('trailing newline', key)
         else:
             raise ValidationException('invalid key', key)
+
+        if Client.is_py3:
+            return key.encode()
+        else:
+            return key
 
     def _build_index(self, nodes):
         mutations = 100
@@ -330,11 +348,11 @@ class Client(object):
         # resp - DELETED\r\n
         #        or
         #        NOT_FOUND\r\n
-        self._validate_key(key)
+        key_bytes = self._validate_key(key)
 
-        command = 'delete ' + key + '\r\n'
+        command = b'delete ' + key_bytes + b'\r\n'
         resp = self._find_node(key).send(command)
-        if resp != 'DELETED\r\n' and resp != 'NOT_FOUND\r\n':
+        if resp != b'DELETED\r\n' and resp != b'NOT_FOUND\r\n':
             raise ClientException('delete failed', resp)
 
     def get(self, key):
@@ -350,26 +368,30 @@ class Client(object):
         #        <data block>\r\n (if exists)
         #        [...]
         #        END\r\n
-        self._validate_key(key)
+        key_bytes = self._validate_key(key)
 
-        command = 'get ' + key + '\r\n'
+        command = b'get ' + key_bytes + b'\r\n'
+
         val = None
         node = self._find_node(key)
         resp = node.send(command)
         error = None
 
         # make sure well-formed responses are all consumed
-        while resp != 'END\r\n':
+        while resp != b'END\r\n':
             terms = resp.split()
-            if len(terms) == 4 and terms[0] == 'VALUE':  # exists
+            if len(terms) == 4 and terms[0] == b'VALUE':  # exists
                 typecode = int(terms[2]) ^ 0x100
                 length = int(terms[3])
                 if typecode > 0xff:
                     error = ClientException('not a moecache deployment')
-                if terms[1] == key:
+                if terms[1] == key_bytes:
                     received = node.gets(length+2)[:-2]
                     if typecode == 18:
-                        val = received
+                        if Client.is_py3:
+                            val = received.decode()
+                        else:
+                            val = received
                     elif typecode == 0:
                         val = pickle_loads(received)
                     else:
@@ -408,7 +430,7 @@ class Client(object):
         # req  - set <key> <flags> <exptime> <bytes> [noreply]\r\n
         #        <data block>\r\n
         # resp - STORED\r\n (or others)
-        self._validate_key(key)
+        key_bytes = self._validate_key(key)
 
         # typically, if val is > 1024**2 bytes server returns:
         #   SERVER_ERROR object too large for cache\r\n
@@ -421,26 +443,29 @@ class Client(object):
             raise ValidationException('exptime negative', exptime)
 
         if isinstance(val, str):
-            flag = ' 274 '  # 18 | 0x100
-            sent = val
+            flag = b' 274 '  # 18 | 0x100
+            if Client.is_py3:
+                sent = val.encode()
+            else:
+                sent = val
         else:
-            flag = ' 256 '  # 0 | 0x100
+            flag = b' 256 '  # 0 | 0x100
             sent = pickle_dumps(val)
 
         buf = OStringStream()
-        buf.write('set ')
-        buf.write(key)
+        buf.write(b'set ')
+        buf.write(key_bytes)
         buf.write(flag)
-        buf.write(str(exptime))
-        buf.write(' ')
-        buf.write(str(len(sent)))
-        buf.write('\r\n')
+        buf.write(str(exptime).encode())
+        buf.write(b' ')
+        buf.write(str(len(sent)).encode())
+        buf.write(b'\r\n')
         buf.write(sent)
-        buf.write('\r\n')
+        buf.write(b'\r\n')
 
         command = buf.getvalue()
         resp = self._find_node(key).send(command)
-        if resp != 'STORED\r\n':
+        if resp != b'STORED\r\n':
             raise ClientException('set failed', resp)
 
     def stats(self, additional_args=None):
@@ -460,20 +485,25 @@ class Client(object):
         # resp - STAT <name> <value>\r\n (one per result)
         #        END\r\n
         if additional_args is not None:
-            command = 'stats ' + additional_args + '\r\n'
+            if Client.is_py3:
+                additional_args = additional_args.encode()
+            command = b'stats ' + additional_args + b'\r\n'
         else:
-            command = 'stats\r\n'
+            command = b'stats\r\n'
 
         def do_stats(node):
             resp = node.send(command)
             result = {}
-            while resp != 'END\r\n':
+            while resp != b'END\r\n':
                 terms = resp.split()
-                if len(terms) == 3 and terms[0] == 'STAT':
-                    result[terms[1]] = terms[2]
+                if len(terms) == 3 and terms[0] == b'STAT':
+                    if Client.is_py3:
+                        result[terms[1].decode()] = terms[2].decode()
+                    else:
+                        result[terms[1]] = terms[2]
                 else:
                     raise ClientException('stats failed', resp)
                 resp = node.gets()
             return result
 
-        return map(do_stats, self._nodes)
+        return list(map(do_stats, self._nodes))

@@ -19,6 +19,7 @@
 # the point is that we can handcraft delays
 # to verify timeouts work as expected
 
+from __future__ import print_function
 import errno
 from optparse import OptionError, OptionParser
 import socket
@@ -43,7 +44,7 @@ class MockMemcached(object):
 
         # buffer needed since we always ask for 4096 bytes at a time
         # and thus might read more than the current expected response
-        self._buffer = ''
+        self._buffer = bytearray()
         # self._socket set after accept
 
     def _read(self, length=None):
@@ -59,13 +60,13 @@ class MockMemcached(object):
         while result is None:
             if length:  # length = 0 is ambiguous, so don't use
                 if len(self._buffer) >= length:
-                    result = self._buffer[:length]
-                    self._buffer = self._buffer[length:]
+                    result = bytes(self._buffer[:length])
+                    self._buffer[:] = self._buffer[length:]
             else:
-                delim_index = self._buffer.find('\r\n')
+                delim_index = self._buffer.find(b'\r\n')
                 if delim_index != -1:
-                    result = self._buffer[:delim_index+2]
-                    self._buffer = self._buffer[delim_index+2:]
+                    result = bytes(self._buffer[:delim_index+2])
+                    self._buffer[:] = self._buffer[delim_index+2:]
 
             if result is None:
                 tmp = self._socket.recv(4096)
@@ -85,9 +86,11 @@ class MockMemcached(object):
         if key in self._dict:
             val = self._dict[key]
             # 274 = 18 | 0x100
-            command = 'VALUE %s 274 %d\r\n%s\r\n' % (key, len(val), val)
+            command = 'VALUE %s 274 %d\r\n%s\r\n' % (
+                key.decode('utf-8'), len(val), val.decode('utf-8'))
+            command = command.encode('utf-8')
             self._socket.sendall(command)
-        self._socket.sendall('END\r\n')
+        self._socket.sendall(b'END\r\n')
 
     def _handle_set(self, key, length):
         # req  - set <key> <flags> <exptime> <bytes> [noreply]\r\n
@@ -95,7 +98,7 @@ class MockMemcached(object):
         # resp - STORED\r\n (or others)
         val = self._read(length+2)[:-2]  # read \r\n then chop it off
         self._dict[key] = val
-        self._socket.sendall('STORED\r\n')
+        self._socket.sendall(b'STORED\r\n')
 
     def run(self):
         self._root_socket.listen(1)
@@ -110,15 +113,15 @@ class MockMemcached(object):
             try:
                 request = self._read()
                 terms = request.split()
-                if len(terms) == 2 and terms[0] == 'get':
+                if len(terms) == 2 and terms[0] == b'get':
                     self._handle_get(terms[1])
-                elif len(terms) == 5 and terms[0] == 'set':
+                elif len(terms) == 5 and terms[0] == b'set':
                     self._handle_set(terms[1], int(terms[4]))
                 else:
-                    print 'unknown command', repr(request)
+                    print('unknown command', repr(request))
                     break
             except SocketClosedException:
-                print 'socket closed', repr(request)
+                print('socket closed', repr(request))
                 break
 
         self._socket.close()
@@ -158,7 +161,8 @@ if __name__ == '__main__':
     )
     (options, args) = parser.parse_args()
     if len(args) > 0:
-        raise OptionError('unrecognized arguments: %s' % ' '.join(args))
+        raise OptionError('unrecognized arguments: %s' % ' '.join(args),
+                          None)
 
     server = MockMemcached('127.0.0.1',
                            options.port,

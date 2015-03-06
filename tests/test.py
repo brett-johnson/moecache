@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
 import moecache
 
 import socket
@@ -34,7 +35,7 @@ class TestClient(unittest.TestCase):
         try:
             c.memcached.terminate()
         except:
-            print 'for some reason memcached not running'
+            print('for some reason memcached not running')
         c.memcached.wait()
 
     def setUp(self):
@@ -122,9 +123,11 @@ class TestClient(unittest.TestCase):
 
         def store(flag):
             command = 'set %s %d 60 %d\r\n%s\r\n' % (key, flag, len(val), val)
+            command = command.encode('utf-8')
+
             self.client._nodes[0]._socket.sendall(command)
             rc = self.client._nodes[0].gets()
-            self.assertEqual(rc, 'STORED\r\n')
+            self.assertEqual(rc, b'STORED\r\n')
 
         store(0)
         with helpers.expect(Exception):

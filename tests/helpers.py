@@ -91,6 +91,6 @@ def expect(*exc_type):
             'Not raised: %s' % ', '.join(e.__name__ for e in exc_type))
 
 
-def random_key(maxlen=10, chars=string.lowercase + string.digits):
+def random_key(maxlen=10, chars=string.ascii_lowercase + string.digits):
     l = random.randint(1, maxlen)
     return ''.join(random.choice(chars) for _ in range(l))
