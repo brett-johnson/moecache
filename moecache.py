@@ -122,7 +122,7 @@ def _node_conf(timeout, connect_timeout):
             # thus, might read more than the current expected response
             # cleared on every reconnect since old bytes are part of old
             # session and can't be reused
-            self._buffer = ''
+            self._buffer = bytearray()
 
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._socket.settimeout(connect_timeout)
@@ -147,13 +147,13 @@ def _node_conf(timeout, connect_timeout):
             while result is None:
                 if length:  # length = 0 is ambiguous, so don't use
                     if len(self._buffer) >= length:
-                        result = self._buffer[:length]
-                        self._buffer = self._buffer[length:]
+                        result = bytes(self._buffer[:length])
+                        self._buffer[:] = self._buffer[length:]
                 else:
-                    delim_index = self._buffer.find('\r\n')
+                    delim_index = self._buffer.find(b'\r\n')
                     if delim_index != -1:
-                        result = self._buffer[:delim_index+2]
-                        self._buffer = self._buffer[delim_index+2:]
+                        result = bytes(self._buffer[:delim_index+2])
+                        self._buffer[:] = self._buffer[delim_index+2:]
 
                 if result is None:
                     try:
