@@ -224,6 +224,7 @@ class TestConnectTimeout(unittest.TestCase):
     unavailable_ip = '173.193.164.107'
 
     def test_connect_timeout(self):
+        raise unittest.case.SkipTest
         # using normal timeout
 
         # client usually does lazy connect, but we don't want to confuse
@@ -233,6 +234,7 @@ class TestConnectTimeout(unittest.TestCase):
             self.assertRaises(socket.timeout, client.stats)
 
     def test_connect_timeout2(self):
+        raise unittest.case.SkipTest
         # using connect timeout
         with moecache.Client((self.unavailable_ip, 11211), connect_timeout=1) \
                 as client:
