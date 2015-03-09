@@ -240,16 +240,14 @@ class Client(object):
     also be applied to the socket ``connect()`` operations.
     '''
 
-    is_py3 = sys.version > '3'
+    is_py3 = sys.version_info.major == 3
 
     def __init__(self, servers, timeout=None, connect_timeout=None):
         _node_type = _node_conf(timeout, connect_timeout
                                 if connect_timeout is not None
                                 else timeout)
-        self._nodes = list(
-            map(_node_type, [servers]
-                if type(servers) is tuple else servers)
-        )
+        self._nodes = list(map(_node_type, [servers]
+                               if type(servers) is tuple else servers))
         self._servers = {}
         self._build_index(self._nodes)
 
@@ -279,8 +277,9 @@ class Client(object):
             raise ValidationException('invalid key', key)
 
         if Client.is_py3:
-            return bytearray(key, 'utf-8')
-        return key
+            return key.encode()
+        else:
+            return key
 
     def _build_index(self, nodes):
         mutations = 100
@@ -353,10 +352,7 @@ class Client(object):
 
         command = b'delete ' + key_bytes + b'\r\n'
         resp = self._find_node(key).send(command)
-        if (
-                resp != bytearray('DELETED\r\n', 'utf-8') and
-                resp != bytearray('NOT_FOUND\r\n', 'utf-8')
-        ):
+        if resp != b'DELETED\r\n' and resp != b'NOT_FOUND\r\n':
             raise ClientException('delete failed', resp)
 
     def get(self, key):
@@ -382,12 +378,9 @@ class Client(object):
         error = None
 
         # make sure well-formed responses are all consumed
-        while resp != bytearray('END\r\n', 'utf-8'):
+        while resp != b'END\r\n':
             terms = resp.split()
-            if (
-                len(terms) == 4 and
-                terms[0] == bytearray('VALUE', 'utf-8')
-            ):  # exists
+            if len(terms) == 4 and terms[0] == b'VALUE':  # exists
                 typecode = int(terms[2]) ^ 0x100
                 length = int(terms[3])
                 if typecode > 0xff:
@@ -396,7 +389,7 @@ class Client(object):
                     received = node.gets(length+2)[:-2]
                     if typecode == 18:
                         if Client.is_py3:
-                            val = received.decode('utf-8')
+                            val = received.decode()
                         else:
                             val = received
                     elif typecode == 0:
@@ -450,19 +443,19 @@ class Client(object):
             raise ValidationException('exptime negative', exptime)
 
         if isinstance(val, str):
-            flag = ' 274 '  # 18 | 0x100
+            flag = b' 274 '  # 18 | 0x100
             if Client.is_py3:
-                sent = val.encode('utf-8')
+                sent = val.encode()
             else:
                 sent = val
         else:
-            flag = ' 256 '  # 0 | 0x100
+            flag = b' 256 '  # 0 | 0x100
             sent = pickle_dumps(val)
 
         buf = OStringStream()
         buf.write(b'set ')
         buf.write(key_bytes)
-        buf.write(flag.encode())
+        buf.write(flag)
         buf.write(str(exptime).encode())
         buf.write(b' ')
         buf.write(str(len(sent)).encode())
@@ -472,7 +465,7 @@ class Client(object):
 
         command = buf.getvalue()
         resp = self._find_node(key).send(command)
-        if resp != bytearray('STORED\r\n', 'utf-8'):
+        if resp != b'STORED\r\n':
             raise ClientException('set failed', resp)
 
     def stats(self, additional_args=None):
@@ -493,7 +486,7 @@ class Client(object):
         #        END\r\n
         if additional_args is not None:
             if Client.is_py3:
-                additional_args = additional_args.encode('utf-8')
+                additional_args = additional_args.encode()
             command = b'stats ' + additional_args + b'\r\n'
         else:
             command = b'stats\r\n'
@@ -501,13 +494,11 @@ class Client(object):
         def do_stats(node):
             resp = node.send(command)
             result = {}
-            while resp != bytearray('END\r\n', 'utf-8'):
+            while resp != b'END\r\n':
                 terms = resp.split()
-                if len(terms) == 3 and terms[0] == bytearray('STAT', 'utf-8'):
+                if len(terms) == 3 and terms[0] == b'STAT':
                     if Client.is_py3:
-                        result[terms[1].decode('utf-8')] = (
-                            terms[2].decode('utf-8')
-                        )
+                        result[terms[1].decode()] = terms[2].decode()
                     else:
                         result[terms[1]] = terms[2]
                 else:

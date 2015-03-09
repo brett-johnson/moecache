@@ -123,11 +123,11 @@ class TestClient(unittest.TestCase):
 
         def store(flag):
             command = 'set %s %d 60 %d\r\n%s\r\n' % (key, flag, len(val), val)
-            command = bytearray(command, 'utf-8')
+            command = command.encode('utf-8')
 
             self.client._nodes[0]._socket.sendall(command)
             rc = self.client._nodes[0].gets()
-            self.assertEqual(rc, bytearray('STORED\r\n', 'utf-8'))
+            self.assertEqual(rc, b'STORED\r\n')
 
         store(0)
         with helpers.expect(Exception):
@@ -224,7 +224,7 @@ class TestConnectTimeout(unittest.TestCase):
     # kernel level (iptables etc)
 
     # appstage01 (external ip is firewalled, internal is not)
-    unavailable_ip = '127.0.0.10'
+    unavailable_ip = '173.193.164.107'
 
     def test_connect_timeout(self):
         raise unittest.case.SkipTest
