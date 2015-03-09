@@ -86,7 +86,8 @@ class MockMemcached(object):
         if key in self._dict:
             val = self._dict[key]
             # 274 = 18 | 0x100
-            command = 'VALUE %s 274 %d\r\n%s\r\n' % (key, len(val), val)
+            command = 'VALUE %s 274 %d\r\n%s\r\n' % (
+                key.decode('utf-8'), len(val), val.decode('utf-8'))
             command = command.encode('utf-8')
             self._socket.sendall(command)
         self._socket.sendall(b'END\r\n')
