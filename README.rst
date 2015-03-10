@@ -8,6 +8,8 @@ python memcached client from Mixpanel, Inc.
 
 The API looks very similar to the other memcached clients:
 
+::
+
     import moecache
 
     with moecache.Client([("127.0.0.1", 11211), ("127.0.0.1", 11213)],
