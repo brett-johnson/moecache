@@ -15,6 +15,10 @@
 
 import contextlib
 import functools
+import os
+import random
+import string
+import time
 
 # subprocess is not monkey-patched, hence the special import
 import sys
@@ -22,12 +26,6 @@ if 'eventlet' in sys.modules:
     from eventlet.green import subprocess
 else:
     import subprocess
-
-import os
-import os.path
-import random
-import string
-import time
 
 low_port = 11000
 high_port = 11210
