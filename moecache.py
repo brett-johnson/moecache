@@ -25,6 +25,12 @@ Usage example::
         mc.set("some_key", "Some value")
         value = mc.get("some_key")
         mc.delete("another_key")
+
+.. note::
+
+    If the value to store is of type ``str``, the entry is binary compatible
+    with EnyimMemcached; otherwise, the value will be "pickled" with protocol
+    version 2 and can only be read by moecache.
 '''
 
 import errno
@@ -416,11 +422,9 @@ class Client(object):
         Sets a key to a value with an optional expire time in seconds
         (0 means don't auto-expire).
 
-        A valid ``key`` is a byte string with a minimal length of 1 and a
+        A valid ``key`` is a string with a minimal length of 1 and a
         maximal length of 250, and each character is an ASCII graph
         character (printable except spaces).
-
-        A valid ``val`` is a byte string.
 
         A valid ``exptime`` is a non-negative integer.
 
