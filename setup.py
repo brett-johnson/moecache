@@ -9,7 +9,7 @@ def localopen(fname):
 
 setup(
     name='moecache',
-    version='0.1',
+    version='0.2',
     description='A memcached client with a different shading strategy',
     author='Zhihao Yuan',
     author_email='zhihao.yuan@rackspace.com',
@@ -25,8 +25,10 @@ setup(
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: POSIX',
-        'Programming Language :: Python :: 2 :: Only',
+        'Operating System :: MacOS :: MacOS X',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: Implementation :: PyPy',
     ]
 )
