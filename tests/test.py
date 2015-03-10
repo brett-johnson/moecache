@@ -17,6 +17,7 @@ from __future__ import print_function
 import moecache
 
 import socket
+import telnetlib
 import time
 import unittest
 
@@ -205,8 +206,16 @@ class TestConnectTimeout(unittest.TestCase):
     # appstage01 (external ip is firewalled, internal is not)
     unavailable_ip = '173.193.164.107'
 
+    @classmethod
+    def setUpClass(cls):
+        try:
+            telnetlib.Telnet(cls.unavailable_ip, 11211, timeout=0.1)
+        except socket.timeout:
+            pass
+        except Exception as exc:
+            raise unittest.case.SkipTest(exc)
+
     def test_connect_timeout(self):
-        raise unittest.case.SkipTest
         # using normal timeout
 
         # client usually does lazy connect, but we don't want to confuse
@@ -216,7 +225,6 @@ class TestConnectTimeout(unittest.TestCase):
             self.assertRaises(socket.timeout, client.stats)
 
     def test_connect_timeout2(self):
-        raise unittest.case.SkipTest
         # using connect timeout
         with moecache.Client((self.unavailable_ip, 11211), connect_timeout=1) \
                 as client:
