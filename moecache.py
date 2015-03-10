@@ -191,7 +191,7 @@ def _node_conf(timeout, connect_timeout):
             if self._socket:  # try to find out if the socket is still open
                 try:
                     self._socket.settimeout(0)
-                    self._socket.recv(0)
+                    self._socket.recv(1, socket.MSG_PEEK)
                     # if recv didn't raise, then the socket was closed or
                     # there is junk in the read buffer, either way, close
                     self.close()
