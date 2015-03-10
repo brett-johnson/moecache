@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import contextlib
+import functools
 
 # subprocess is not monkey-patched, hence the special import
 import sys
@@ -32,7 +33,28 @@ low_port = 11000
 high_port = 11210
 
 
+def terminated(f):
+    class terminating(tuple):
+        def __new__(cls, t):
+            return super(terminating, cls).__new__(cls, t)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            if self[0].returncode is None:
+                self[0].terminate()
+                self[0].wait()
+
+    @functools.wraps(f)
+    def wrapped(*args, **kwargs):
+        return terminating(f(*args, **kwargs))
+
+    return wrapped
+
+
 # spin up new memcached instance to test against
+@terminated
 def start_new_memcached_server(port=None, mock=False, additional_args=[]):
     if not port:
         global low_port

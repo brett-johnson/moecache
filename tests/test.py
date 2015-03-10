@@ -143,77 +143,56 @@ class TestClient(unittest.TestCase):
 class TestFailures(unittest.TestCase):
 
     def test_gone(self):
-        mock_memcached, port = helpers.start_new_memcached_server()
-        try:
-            client = moecache.Client(('127.0.0.1', port))
+        with helpers.start_new_memcached_server() as (mock_memcached, port), \
+                moecache.Client(('127.0.0.1', port)) as client:
             key = 'gone'
             val = 'QWMcxh'
             client.set(key, val)
 
             mock_memcached.terminate()
             mock_memcached.wait()
-            mock_memcached = None
 
             self.assertRaises(Exception, client.get, key)
-            client.close()
-        finally:
-            if mock_memcached:
-                mock_memcached.terminate()
-                mock_memcached.wait()
 
     def test_hardfail(self):
-        mock_memcached, port = helpers.start_new_memcached_server()
-        try:
-            client = moecache.Client(('127.0.0.1', port))
+        with helpers.start_new_memcached_server() as (mock_memcached, port), \
+                moecache.Client(('127.0.0.1', port)) as client:
             key = 'hardfail'
             val = 'FuOIdn'
             client.set(key, val)
 
             mock_memcached.kill()  # sends SIGKILL
             mock_memcached.wait()
-            mock_memcached, port = helpers.start_new_memcached_server(
-                port=port)
 
-            mcval = client.get(key)
-            self.assertEqual(mcval, None)  # val lost when restarted
-            client.close()
-        finally:
-            mock_memcached.terminate()
-            mock_memcached.wait()
+            with helpers.start_new_memcached_server(port=port):
+                mcval = client.get(key)
+                self.assertEqual(mcval, None)  # val lost when restarted
 
 
 class TestTimeout(unittest.TestCase):
 
     # make sure mock server works
     def test_set_get(self):
-        mock_memcached, port = helpers.start_new_memcached_server(mock=True)
-        try:
-            client = moecache.Client(('127.0.0.1', port))
+        with helpers.start_new_memcached_server(mock=True) \
+                as (mock_memcached, port), \
+                moecache.Client(('127.0.0.1', port)) as client:
             key = 'set_get'
             val = 'DhuWmC'
             client.set(key, val)
             mcval = client.get(key)
             self.assertEqual(val, mcval)
-            client.close()
-        finally:
-            mock_memcached.terminate()
-            mock_memcached.wait()
 
     def test_get_timeout(self):
-        mock_memcached, port = helpers.start_new_memcached_server(
-            mock=True, additional_args=['--get-delay', '2'])
-        try:
-            client = moecache.Client(('127.0.0.1', port), timeout=1)
+        with helpers.start_new_memcached_server(
+                mock=True, additional_args=['--get-delay', '2']) \
+                as (mock_memcached, port), \
+                moecache.Client(('127.0.0.1', port), timeout=1) as client:
             key = 'get_timeout'
             val = 'cMuBde'
             client.set(key, val)
             # when running unpatched eventlet,
             # the following will fail w/ socket.error, EAGAIN
             self.assertRaises(socket.timeout, client.get, key)
-            client.close()
-        finally:
-            mock_memcached.terminate()
-            mock_memcached.wait()
 
 
 class TestConnectTimeout(unittest.TestCase):
