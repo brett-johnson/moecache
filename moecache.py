@@ -246,7 +246,7 @@ class Client(object):
     also be applied to the socket ``connect()`` operations.
     '''
 
-    is_py3 = sys.version_info.major == 3
+    is_py3 = sys.version_info[0] == 3
 
     def __init__(self, servers, timeout=None, connect_timeout=None):
         _node_type = _node_conf(timeout, connect_timeout
